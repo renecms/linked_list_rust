@@ -110,7 +110,6 @@ mod tests {
         assert_eq!("teste2".to_string(), *iter.next().unwrap());
         assert_eq!("teste".to_string(), *iter.next().unwrap());
         assert_eq!(None, iter.next());
-        assert_eq!(None, iter.next());
         assert_eq!(3, list.count)
     }
 }
