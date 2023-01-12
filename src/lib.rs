@@ -1,27 +1,29 @@
 #![allow(dead_code)]
-use std::{fmt::Display, rc::Rc, marker::PhantomData};
+use std::fmt::Display;
+use std::marker::PhantomData;
 
-#[derive(Debug)]
-struct LinkedListNode<T: Display> {
+#[derive(Debug, Clone)]
+struct LinkedListNode<T: Display + Clone> {
     data: T,
-    next: Option<Rc<LinkedListNode<T>>>,
+    next: Option<Box<LinkedListNode<T>>>,
 }
 
-#[derive(Debug)]
-struct LinkedList<T: Display> {
-    head: Option<Rc<LinkedListNode<T>>>,
-    tail: Option<Rc<LinkedListNode<T>>>,
+#[derive(Debug, Clone)]
+struct LinkedList<T: Display + Clone> {
+    head: Option<Box<LinkedListNode<T>>>,
+    tail: Option<Box<LinkedListNode<T>>>,
     count: usize,
 }
 
-struct LinkedListIterator<'a, T: Display> {
-    current_node: Option<Rc<LinkedListNode<T>>>,
-    marker: PhantomData<&'a LinkedListNode<T>>
+#[derive(Debug, Clone)]
+struct LinkedListIterator<T: Display + Clone> {
+    next_node: Option<Box<LinkedListNode<T>>>,
+    marker: PhantomData<LinkedListNode<T>>,
 }
 
 impl<T> LinkedList<T>
 where
-    T: Display,
+    T: Display + Clone,
 {
     pub fn new() -> LinkedList<T> {
         LinkedList::<T> {
@@ -34,21 +36,32 @@ where
     pub fn insert(&mut self, data: T) {
         match &self.head {
             Some(node) => {
-                self.head = Some(Rc::new(LinkedListNode {
+                self.head = Some(Box::new(LinkedListNode {
                     data,
                     next: Some(node.clone()),
                 }));
                 self.count += 1;
             }
             None => {
-                self.head = Some(Rc::new(LinkedListNode {
-                    data,
-                    next: None,
-                }));
+                self.head = Some(Box::new(LinkedListNode { data, next: None }));
                 self.tail = self.head.clone();
                 self.count += 1;
             }
         }
+    }
+
+    pub fn pop(&mut self) -> Option<T> {
+        let result;
+        match self.head.clone() {
+            Some(node) => {
+                let new_head = self.head.as_ref().unwrap().next.clone();
+                result = Some(node.data);
+                self.head = new_head;
+                self.count -= 1;
+            }
+            None => result = None,
+        }
+        result
     }
 
     pub fn display(&self) {
@@ -61,25 +74,23 @@ where
 
     pub fn iter(&self) -> LinkedListIterator<T> {
         LinkedListIterator {
-            current_node: self.head.clone(),
-            marker: PhantomData
+            next_node: self.head.clone(),
+            marker: PhantomData,
         }
     }
 }
 
-impl<'a, T> Iterator for LinkedListIterator<'a, T>
+impl<T> Iterator for LinkedListIterator<T>
 where
-    T: Display,
+    T: Display + Clone,
 {
-    type Item = &'a T;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(node) = self.current_node.clone() {
-            unsafe {
-                let cur_node: &LinkedListNode<T> = &*Rc::<LinkedListNode<T>>::as_ptr(&node);
-                self.current_node = node.next.clone();
-                Some(&cur_node.data)
-            }    
+        if let Some(node) = &self.next_node {
+            let current_data = node.data.clone();
+            self.next_node = node.next.clone();
+            Some(current_data)
         } else {
             None
         }
@@ -96,6 +107,7 @@ mod tests {
         list.insert(String::from("teste"));
         list.insert(String::from("teste2"));
         list.insert(String::from("teste3"));
+
         assert_eq!(3, list.count)
     }
 
@@ -105,11 +117,29 @@ mod tests {
         list.insert(String::from("teste"));
         list.insert(String::from("teste2"));
         list.insert(String::from("teste3"));
+        
         let mut iter = list.iter();
+        
         assert_eq!("teste3".to_string(), *iter.next().unwrap());
         assert_eq!("teste2".to_string(), *iter.next().unwrap());
         assert_eq!("teste".to_string(), *iter.next().unwrap());
         assert_eq!(None, iter.next());
+        
         assert_eq!(3, list.count)
+    }
+
+    #[test]
+    fn test_pop() {
+        let mut list: LinkedList<String> = LinkedList::new();
+        list.insert(String::from("teste"));
+        list.insert(String::from("teste2"));
+        list.insert(String::from("teste3"));
+
+        assert_eq!("teste3".to_string(), list.pop().unwrap());
+        assert_eq!("teste2".to_string(), list.pop().unwrap());
+        assert_eq!("teste".to_string(), list.pop().unwrap());
+        assert_eq!(None, list.pop());
+
+        assert_eq!(0, list.count)
     }
 }
