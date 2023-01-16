@@ -54,32 +54,24 @@ where
 
     pub fn push(&mut self, data: T) {
         let new_node = Rc::new(RefCell::new(LinkedListNode { data, next: None }));
-        if let Some(tail) = &mut self.tail {
+        if let Some(tail) = &self.tail {
             let mut node = tail.borrow_mut();
             node.next = Some(new_node.clone());
         } else {
             self.head = Some(new_node.clone());
         }
-        self.tail = Some(new_node.clone());
+        self.tail = Some(new_node);
         self.count += 1;
     }
 
     pub fn pop(&mut self) -> Option<T> {
         match self.head.clone() {
             Some(node) => {
-                self.head = Self::get_new_head(&node);
+                self.head = node.borrow().next.as_ref().cloned();
                 self.count -= 1;
                 Some(node.borrow().data.clone())
             }
             None => None,
-        }
-    }
-
-    fn get_new_head(current_head: &NodeRc<T>) -> Option<NodeRc<T>> {
-        if let Some(head) = current_head.borrow().next.as_ref() {
-            Some(head.clone())
-        } else {
-            None
         }
     }
 
