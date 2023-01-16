@@ -1,23 +1,26 @@
 #![allow(dead_code)]
+use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
+
+type NodeRc<T> = Rc<RefCell<LinkedListNode<T>>>;
 
 #[derive(Debug, Clone)]
 struct LinkedListNode<T: Display + Clone> {
     data: T,
-    next: Option<Rc<LinkedListNode<T>>>,
+    next: Option<NodeRc<T>>,
 }
 
 #[derive(Debug, Clone)]
 struct LinkedList<T: Display + Clone> {
-    head: Option<Rc<LinkedListNode<T>>>,
-    tail: Option<Rc<LinkedListNode<T>>>,
+    head: Option<NodeRc<T>>,
+    tail: Option<NodeRc<T>>,
     count: usize,
 }
 
 #[derive(Debug, Clone)]
 struct LinkedListIterator<T: Display + Clone> {
-    next_node: Option<Rc<LinkedListNode<T>>>,
+    next_node: Option<NodeRc<T>>,
 }
 
 impl<T> LinkedList<T>
@@ -35,39 +38,56 @@ where
     pub fn insert(&mut self, data: T) {
         match &self.head {
             Some(node) => {
-                self.head = Some(Rc::new(LinkedListNode {
-                    data,
-                    next: Some(node.clone()),
-                }));
-                self.count += 1;
+                self.head = Self::create_node(data, Some(node.clone()));
             }
             None => {
-                self.head = Some(Rc::new(LinkedListNode { data, next: None }));
+                self.head = Self::create_node(data, None);
                 self.tail = self.head.clone();
-                self.count += 1;
             }
         }
+        self.count += 1;
+    }
+
+    fn create_node(data: T, next: Option<NodeRc<T>>) -> Option<NodeRc<T>> {
+        Some(Rc::new(RefCell::from(LinkedListNode { data, next })))
+    }
+
+    pub fn push(&mut self, data: T) {
+        let new_node = Rc::new(RefCell::new(LinkedListNode { data, next: None }));
+        if let Some(tail) = &mut self.tail {
+            let mut node = tail.borrow_mut();
+            node.next = Some(new_node.clone());
+        } else {
+            self.head = Some(new_node.clone());
+        }
+        self.tail = Some(new_node.clone());
+        self.count += 1;
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        let result;
         match self.head.clone() {
             Some(node) => {
-                let new_head = node.next.clone();
-                result = Some(node.data.clone());
-                self.head = new_head;
+                self.head = Self::get_new_head(&node);
                 self.count -= 1;
+                Some(node.borrow().data.clone())
             }
-            None => result = None,
+            None => None,
         }
-        result
+    }
+
+    fn get_new_head(current_head: &NodeRc<T>) -> Option<NodeRc<T>> {
+        if let Some(head) = current_head.borrow().next.as_ref() {
+            Some(head.clone())
+        } else {
+            None
+        }
     }
 
     pub fn display(&self) {
-        let mut node = &self.head;
+        let mut node: Option<NodeRc<T>> = self.head.clone();
         while let Some(current) = node {
-            println!("node {}", current.data);
-            node = &current.next;
+            println!("node {}", current.borrow().data);
+            node = current.borrow().next.clone();
         }
     }
 
@@ -85,9 +105,9 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(node) = &self.next_node {
-            let current_data = node.data.clone();
-            self.next_node = node.next.clone();
+        if let Some(node) = self.next_node.clone() {
+            let current_data: T = node.borrow().data.clone();
+            self.next_node = node.borrow().next.clone();
             Some(current_data)
         } else {
             None
@@ -115,14 +135,14 @@ mod tests {
         list.insert(String::from("teste"));
         list.insert(String::from("teste2"));
         list.insert(String::from("teste3"));
-        
+
         let mut iter = list.iter();
-        
-        assert_eq!("teste3".to_string(), *iter.next().unwrap());
-        assert_eq!("teste2".to_string(), *iter.next().unwrap());
-        assert_eq!("teste".to_string(), *iter.next().unwrap());
+
+        assert_eq!("teste3".to_string(), iter.next().unwrap());
+        assert_eq!("teste2".to_string(), iter.next().unwrap());
+        assert_eq!("teste".to_string(), iter.next().unwrap());
         assert_eq!(None, iter.next());
-        
+
         assert_eq!(3, list.count)
     }
 
@@ -139,5 +159,22 @@ mod tests {
         assert_eq!(None, list.pop());
 
         assert_eq!(0, list.count)
+    }
+
+    #[test]
+    fn test_push() {
+        let mut list: LinkedList<String> = LinkedList::new();
+        list.push(String::from("teste"));
+        list.push(String::from("teste2"));
+        list.push(String::from("teste3"));
+
+        let mut iter = list.iter();
+
+        assert_eq!("teste".to_string(), iter.next().unwrap());
+        assert_eq!("teste2".to_string(), iter.next().unwrap());
+        assert_eq!("teste3".to_string(), iter.next().unwrap());
+        assert_eq!(None, iter.next());
+
+        assert_eq!(3, list.count)
     }
 }
