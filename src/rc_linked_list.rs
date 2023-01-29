@@ -19,9 +19,11 @@ struct LinkedList<T: Display + Clone> {
 }
 
 #[derive(Debug, Clone)]
-struct LinkedListIterator<T: Display + Clone> {
+struct Iter<T: Display + Clone> {
     next_node: Option<NodeRc<T>>,
 }
+
+struct IntoIter<T: Display + Clone>(LinkedList<T>);
 
 impl<T> LinkedList<T>
 where
@@ -83,14 +85,35 @@ where
         }
     }
 
-    pub fn iter(&self) -> LinkedListIterator<T> {
-        LinkedListIterator {
+    pub fn iter(&self) -> Iter<T> {
+        Iter {
             next_node: self.head.clone(),
         }
     }
 }
+impl<T> IntoIterator for LinkedList<T>
+where
+    T: Display + Clone,
+{
+    type Item = T;
+    type IntoIter = IntoIter<T>;
 
-impl<T> Iterator for LinkedListIterator<T>
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter(self)
+    }
+}
+
+impl<T> Iterator for IntoIter<T>
+where
+    T: Display + Clone,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+impl<T> Iterator for Iter<T>
 where
     T: Display + Clone,
 {
@@ -136,6 +159,21 @@ mod tests {
         assert_eq!(None, iter.next());
 
         assert_eq!(3, list.count)
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let mut list: LinkedList<String> = LinkedList::new();
+        list.insert(String::from("teste"));
+        list.insert(String::from("teste2"));
+        list.insert(String::from("teste3"));
+
+        let mut iter = list.into_iter();
+
+        assert_eq!("teste3".to_string(), iter.next().unwrap());
+        assert_eq!("teste2".to_string(), iter.next().unwrap());
+        assert_eq!("teste".to_string(), iter.next().unwrap());
+        assert_eq!(None, iter.next());
     }
 
     #[test]
